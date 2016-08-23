@@ -156,6 +156,7 @@ function _update_transaction_email_templates() {
     $defaults = array();
     CRM_Core_BAO_MessageTemplate::retrieve($params, $defaults);
     $content = file_get_contents($tpl['filename']);
+    $content = _make_absolute_url($content);
     $defaults['msg_html'] = $content;
     if ($defaults['id']) {
       CRM_Core_BAO_MessageTemplate::add($defaults);
@@ -195,4 +196,38 @@ function _revert_transaction_email_templates(){
       CRM_Core_BAO_MessageTemplate::revert($defaults['id']);
     }
   }
+}
+/**
+ * https://forum.civicrm.org/index.php?topic=26821.0
+ *
+ *
+ */
+function _make_absolute_url($content) {
+  $res = CRM_Core_Resources::singleton();
+  $base_url = $res->getUrl('org.civicrm.transactiontemplates');
+  $needles = array('href="', 'src="');
+  $new_content = '';
+  if (substr($base_url, -1) != '/') {
+    $base_url .= '/';
+  }
+  $new_base_url = $base_url;
+  $base_url_parts = parse_url($base_url);
+  foreach ($needles as $needle) {
+    while ($pos = strpos($content, $needle)) {
+      $pos += strlen($needle);
+      if (substr($content, $pos, 7) != 'http://' && substr($content, $pos, 8) != 'https://' && substr($content, $pos, 6) != 'ftp://' && substr($content, $pos, 9) != 'mailto://') {
+        if (substr($content, $pos, 1) == '/') {
+          $new_base_url = $base_url_parts['scheme'] . '://' . $base_url_parts['host'];
+        }
+        $new_content .= substr($content, 0, $pos) . $new_base_url;
+      }
+      else {
+        $new_content .= substr($content, 0, $pos);
+      }
+      $content = substr($content, $pos);
+    }
+    $content = $new_content . $content;
+    $new_content = '';
+  }
+  return $content;
 }
